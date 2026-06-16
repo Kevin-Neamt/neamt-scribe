@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.neamt/
+
+# Environment & secrets
+.env
+.env.*
+.env.local
+*.key
+*.pem
+secrets/
