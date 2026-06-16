@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scribe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Marked.js for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0d12;
+      --surface:  #16161f;
+      --surface2: #1c1c28;
+      --border:   #1f1f2e;
+      --accent:   #7C3AED;
+      --accent-h: #6d28d9;
+      --accent-s: rgba(124,58,237,0.12);
+      --text:     #e2e2f0;
+      --muted:    #6b6b8a;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --radius:   10px;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Left panel ── */
+    .left {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-header h2 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-header h2 .icon { font-size: 18px; }
+
+    .panel-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+
+    label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); display: block; margin-bottom: 6px; }
+
+    input[type="text"] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input[type="text"]:focus { border-color: var(--accent); }
+    input[type="text"]::placeholder { color: var(--muted); }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-h); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* Spinner */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Status messages */
+    .status-msg {
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      font-size: 12.5px;
+      display: none;
+      gap: 8px;
+      align-items: flex-start;
+      line-height: 1.5;
+    }
+
+    .status-msg.show { display: flex; }
+    .status-msg.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: #86efac; }
+    .status-msg.error   { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.25);  color: #fca5a5; }
+    .status-msg.info    { background: var(--accent-s);       border: 1px solid rgba(124,58,237,0.25); color: #c4b5fd; }
+
+    /* Notes list (left panel, scrollable) */
+    .notes-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-top: 1px solid var(--border);
+    }
+
+    .notes-section-header {
+      padding: 14px 20px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .notes-section-header span { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+
+    .notes-list { flex: 1; overflow-y: auto; }
+
+    .note-item {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      transition: background 0.12s;
+    }
+
+    .note-item:hover { background: rgba(124,58,237,0.06); }
+    .note-item.active { background: var(--accent-s); }
+
+    .note-item-content { flex: 1; min-width: 0; }
+
+    .note-item-title {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .note-item-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    .note-delete {
+      width: 26px; height: 26px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s, color 0.15s;
+    }
+
+    .note-item:hover .note-delete { opacity: 1; }
+    .note-delete:hover { background: rgba(239,68,68,0.15); color: var(--red); }
+
+    .notes-empty {
+      padding: 32px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* ── Right panel ── */
+    .right {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .viewer-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 57px;
+    }
+
+    .viewer-title {
+      font-size: 14px;
+      font-weight: 600;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .viewer-meta { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+
+    .viewer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px 40px;
+    }
+
+    .viewer-placeholder {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      color: var(--muted);
+    }
+
+    .viewer-placeholder .big-icon { font-size: 48px; opacity: 0.2; }
+    .viewer-placeholder p { font-size: 13px; }
+
+    /* Markdown styles inside viewer */
+    .md-content { max-width: 720px; line-height: 1.7; }
+    .md-content h1 { font-size: 22px; font-weight: 700; margin-bottom: 20px; letter-spacing: -0.4px; }
+    .md-content h2 { font-size: 16px; font-weight: 600; margin: 28px 0 10px; color: #c4b5fd; }
+    .md-content h3 { font-size: 14px; font-weight: 600; margin: 20px 0 8px; color: #a78bfa; }
+    .md-content p  { margin-bottom: 12px; color: var(--text); }
+    .md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 12px; }
+    .md-content li { margin-bottom: 4px; }
+    .md-content blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 10px 16px;
+      margin: 16px 0;
+      background: var(--accent-s);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      color: #c4b5fd;
+      font-style: italic;
+    }
+    .md-content code {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: #a78bfa;
+    }
+    .md-content pre {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      overflow-x: auto;
+      margin-bottom: 16px;
+    }
+    .md-content pre code { background: none; border: none; padding: 0; }
+    .md-content table { border-collapse: collapse; width: 100%; margin-bottom: 16px; font-size: 13px; }
+    .md-content th, .md-content td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+    .md-content th { background: var(--surface2); font-weight: 600; }
+    .md-content hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+    .md-content strong { font-weight: 600; color: #e2e2f0; }
+    .md-content a { color: var(--accent); text-decoration: none; }
+    .md-content a:hover { text-decoration: underline; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- ── Left Panel ──────────────────────────────── -->
+  <div class="left">
+    <!-- Process section -->
+    <div class="panel-header">
+      <h2><span class="icon">📖</span> Process Video</h2>
+    </div>
+    <div class="panel-body">
+      <div>
+        <label for="url-input">YouTube URL</label>
+        <input
+          id="url-input"
+          type="text"
+          placeholder="https://youtube.com/watch?v=..."
+          autocomplete="off"
+        />
+      </div>
+      <button id="process-btn" class="btn btn-primary" onclick="processVideo()">
+        <div id="btn-spinner" class="spinner"></div>
+        <span id="btn-label">Process</span>
+      </button>
+      <div id="status-msg" class="status-msg"></div>
+    </div>
+
+    <!-- Notes list -->
+    <div class="notes-section">
+      <div class="notes-section-header">
+        <span>My Notes</span>
+        <span id="note-count" style="color:var(--muted);font-size:12px;font-weight:500;"></span>
+      </div>
+      <div class="notes-list" id="notes-list">
+        <div class="notes-empty">Loading notes…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right Panel ─────────────────────────────── -->
+  <div class="right">
+    <div class="viewer-header" id="viewer-header">
+      <div class="viewer-placeholder" style="height:auto;flex-direction:row;gap:8px;">
+        <span style="color:var(--muted);font-size:13px;">Select a note to read it</span>
+      </div>
+    </div>
+    <div class="viewer-body" id="viewer-body">
+      <div class="viewer-placeholder">
+        <div class="big-icon">📄</div>
+        <p>Your notes will appear here</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── neamt bridge ────────────────────────────────────────────────────────
+  // The parent shell intercepts these messages and calls /api/skills/<id>/call
+  let _pendingResolve = null;
+
+  window.addEventListener('message', (event) => {
+    if (event.data?.neamt_response && _pendingResolve) {
+      const resolve = _pendingResolve;
+      _pendingResolve = null;
+      resolve(event.data.neamt_response);
+    }
+  });
+
+  async function callSkill(action, payload = {}) {
+    return new Promise((resolve) => {
+      _pendingResolve = resolve;
+      window.parent.postMessage({ neamt_call: { action, payload } }, '*');
+      // Safety timeout — resolve with error if no response in 5 min
+      setTimeout(() => {
+        if (_pendingResolve === resolve) {
+          _pendingResolve = null;
+          resolve({ status: 'error', message: 'Request timed out (5 min)' });
+        }
+      }, 300_000);
+    });
+  }
+
+  // ── State ───────────────────────────────────────────────────────────────
+  let activeFilename = null;
+  let notes = [];
+
+  // ── Status helpers ──────────────────────────────────────────────────────
+  function showStatus(type, html) {
+    const el = document.getElementById('status-msg');
+    el.className = `status-msg show ${type}`;
+    el.innerHTML = html;
+  }
+
+  function clearStatus() {
+    const el = document.getElementById('status-msg');
+    el.className = 'status-msg';
+    el.innerHTML = '';
+  }
+
+  // ── Process video ───────────────────────────────────────────────────────
+  async function processVideo() {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) {
+      showStatus('error', '⚠ Please enter a YouTube URL');
+      return;
+    }
+
+    const btn     = document.getElementById('process-btn');
+    const spinner = document.getElementById('btn-spinner');
+    const label   = document.getElementById('btn-label');
+
+    btn.disabled  = true;
+    spinner.style.display = 'block';
+    label.textContent     = 'Processing…';
+    showStatus('info', '⏳ Downloading audio and transcribing… this may take a few minutes.');
+
+    const res = await callSkill('process_video', { url });
+
+    spinner.style.display = 'none';
+    btn.disabled = false;
+    label.textContent = 'Process';
+
+    if (res.status === 'ok') {
+      const r = res.result;
+      showStatus('success',
+        `✓ Note created: <strong>${r.title}</strong><br>` +
+        `<span style="opacity:0.7;font-size:11px;">${r.word_count} words · ${r.filename}</span>`
+      );
+      document.getElementById('url-input').value = '';
+      await loadNotes();
+      // Auto-open the new note
+      const fresh = notes.find(n => n.filename === r.filename);
+      if (fresh) openNote(fresh);
+    } else {
+      showStatus('error', `✗ ${res.message}`);
+    }
+  }
+
+  // Allow Enter key to submit
+  document.getElementById('url-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') processVideo();
+  });
+
+  // ── Notes list ──────────────────────────────────────────────────────────
+  async function loadNotes() {
+    const res = await callSkill('list_notes');
+    const listEl = document.getElementById('notes-list');
+    const countEl = document.getElementById('note-count');
+
+    if (res.status !== 'ok') {
+      listEl.innerHTML = `<div class="notes-empty">Error loading notes: ${res.message}</div>`;
+      return;
+    }
+
+    notes = res.result.notes;
+    countEl.textContent = notes.length ? `${notes.length}` : '';
+
+    if (!notes.length) {
+      listEl.innerHTML = '<div class="notes-empty">No notes yet.<br>Process a video to get started.</div>';
+      return;
+    }
+
+    listEl.innerHTML = notes.map(n => `
+      <div class="note-item${n.filename === activeFilename ? ' active' : ''}"
+           data-filename="${n.filename}"
+           onclick="openNote(${JSON.stringify(n).replace(/"/g, '&quot;')})">
+        <div class="note-item-content">
+          <div class="note-item-title">${escHtml(n.title)}</div>
+          <div class="note-item-meta">${n.created_at} · ${n.size_kb} KB</div>
+        </div>
+        <button class="note-delete"
+                title="Delete note"
+                onclick="event.stopPropagation(); deleteNote('${n.filename}')">✕</button>
+      </div>
+    `).join('');
+  }
+
+  // ── Open note ───────────────────────────────────────────────────────────
+  async function openNote(note) {
+    activeFilename = note.filename;
+
+    // Highlight selected item
+    document.querySelectorAll('.note-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.filename === note.filename);
+    });
+
+    // Show loading state
+    document.getElementById('viewer-header').innerHTML = `
+      <div class="viewer-title">${escHtml(note.title)}</div>
+      <div class="viewer-meta">${note.created_at}</div>
+    `;
+    document.getElementById('viewer-body').innerHTML =
+      '<div class="viewer-placeholder"><p style="color:var(--muted)">Loading…</p></div>';
+
+    const res = await callSkill('get_note', { filename: note.filename });
+
+    if (res.status !== 'ok') {
+      document.getElementById('viewer-body').innerHTML =
+        `<div class="viewer-placeholder"><p style="color:var(--red)">Error: ${escHtml(res.message)}</p></div>`;
+      return;
+    }
+
+    const html = marked.parse(res.result.content);
+    document.getElementById('viewer-body').innerHTML =
+      `<div class="md-content">${html}</div>`;
+  }
+
+  // ── Delete note ─────────────────────────────────────────────────────────
+  async function deleteNote(filename) {
+    if (!confirm(`Delete "${filename}"?`)) return;
+    const res = await callSkill('delete_note', { filename });
+    if (res.status === 'ok') {
+      if (activeFilename === filename) {
+        activeFilename = null;
+        document.getElementById('viewer-header').innerHTML =
+          '<span style="color:var(--muted);font-size:13px;">Select a note to read it</span>';
+        document.getElementById('viewer-body').innerHTML =
+          '<div class="viewer-placeholder"><div class="big-icon">📄</div><p>Your notes will appear here</p></div>';
+      }
+      await loadNotes();
+    } else {
+      alert(`Delete failed: ${res.message}`);
+    }
+  }
+
+  // ── Utils ───────────────────────────────────────────────────────────────
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────
+  loadNotes();
+</script>
+</body>
+</html>

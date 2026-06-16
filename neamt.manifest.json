@@ -1,0 +1,16 @@
+{
+  "id": "scribe",
+  "name": "Neamt Scribe",
+  "version": "1.0.0",
+  "author": "kevinneamt",
+  "description": "Convert YouTube videos into structured Markdown notes using Whisper and Claude",
+  "permissions": ["internet", "filesystem:write", "anthropic_api"],
+  "entry": "main.py",
+  "neamt_version": ">=1.0.0",
+  "dashboard": {
+    "nav_label": "Scribe",
+    "nav_icon": "book-open",
+    "route": "/skills/scribe",
+    "ui": "ui/index.html"
+  }
+}
